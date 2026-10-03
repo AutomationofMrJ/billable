@@ -1,0 +1,23 @@
+node_modules/
+dist/
+release/
+.test-artifacts/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.zip
+*.log
+.env*
+!.env.example
+dist-demo/
+.claude/
+releases/
+# Internal planning and production notes: kept locally, not published.
+NINJA-ARMORY-BUILD-PLAN-*.md
+VIDEO-PLAN.md
+CLAUDE-HANDOFF.md
+COMPETITION.md
+DEMO-SCRIPT.md
+RELEASE-CHECKLIST.md
+video/

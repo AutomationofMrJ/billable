@@ -1,0 +1,9 @@
+.hosted-demo-note { position: fixed; right: 16px; bottom: 16px; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; max-width: min(560px, calc(100vw - 32px)); padding: 10px 40px 10px 14px; border-radius: 12px; background: #202823; color: #f6f3eb; font: 13px/1.4 'Schibsted Grotesk', system-ui, sans-serif; box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); }
+.hosted-demo-note span { opacity: 0.8; }
+.hosted-demo-note a, .hosted-demo-note button { color: #f6f3eb; font: inherit; }
+.hosted-demo-note [data-reset] { padding: 3px 10px; border: 1px solid rgb(246 243 235 / 0.4); border-radius: 999px; background: transparent; cursor: pointer; }
+.hosted-demo-note a { text-underline-offset: 3px; }
+.demo-close { position: absolute; top: 6px; right: 8px; width: 26px; height: 26px; border: 0; background: transparent; font-size: 18px !important; cursor: pointer; }
+@media print { .hosted-demo-note { display: none; } }
+/* Below modals (100), the phone menu (80/90) and toasts (200); room at the page end so it never hides the last row. */
+body:has(.hosted-demo-note) { padding-bottom: 76px; }
