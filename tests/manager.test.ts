@@ -18,7 +18,7 @@ async function fixture() {
 test('real workspaces start empty, demo data is isolated and the active workspace survives a restart', async () => {
   const f = await fixture();
   try {
-    const demo = f.manager.state(); assert.equal(demo.workspace.demo,true); assert.equal(demo.projects.length,2);
+    const demo = f.manager.state(); assert.equal(demo.workspace.demo,true); assert.equal(demo.projects.length,8);
     const created = await f.manager.execute(f.command({type:'workspace.create',data:{name:'Fictional empty administration',currency:'EUR',demo:false}}));
     assert.equal(created.state.workspace.demo,false); assert.equal(created.state.clients.length,0); assert.equal(created.state.invoices.length,0); assert.equal(created.state.attachments.length,0);
     await f.manager.execute(f.command({type:'client.create',data:{name:'Fictional Real-Mode Customer',address:'',country:'NL',email:'',taxId:''}}));
@@ -101,6 +101,6 @@ test('failed registry save while switching preserves the current workspace and a
     injectable.save=()=>{throw new Error('Fictional switch disk failure');};
     try{await assert.rejects(f.manager.execute(request),/Fictional switch disk failure/);}finally{injectable.save=save;}
     assert.deepEqual(f.manager.state(),before);assert.equal(await readFile(join(f.root,'workspaces.json'),'utf8'),diskBefore);
-    const switched=await f.manager.execute(request);assert.equal(switched.state.workspace.id,demo.id);assert.equal(switched.state.projects.length,2);
+    const switched=await f.manager.execute(request);assert.equal(switched.state.workspace.id,demo.id);assert.equal(switched.state.projects.length,8);
   }finally{await f.close();}
 });

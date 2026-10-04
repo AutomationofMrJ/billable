@@ -13,7 +13,7 @@ test('real server restart, local security, duplicate concurrent issuance and res
   async function start(){output='';child=spawn(process.execPath,['--import','tsx','server/index.ts'],{cwd:resolve('.'),env:{...process.env,BILLABLE_DATA_DIR:root,PORT:String(port)},windowsHide:true,stdio:['ignore','pipe','pipe']});child.stdout?.on('data',b=>{output+=b.toString();});child.stderr?.on('data',b=>{output+=b.toString();});const start=Date.now();while(Date.now()-start<60_000){if(child.exitCode!==null)throw new Error(output);try{const r=await fetch(`${base}/api/state`);if(r.ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw new Error(`Server startup timed out: ${output}`);}
   async function stop(){if(child&&child.exitCode===null){const exited=new Promise<void>(r=>child!.once('exit',()=>r()));child.kill();await exited;}child=undefined;}
   try{
-    await start();const state=await(await fetch(`${base}/api/state`)).json() as AppState;assert.equal(state.workspace.demo,true);assert.equal(state.insights.length,2);
+    await start();const state=await(await fetch(`${base}/api/state`)).json() as AppState;assert.equal(state.workspace.demo,true);assert.equal(state.insights.length,8);
     let token=(await(await fetch(`${base}/api/session`)).json()).token;
     const command=async(c:Command,workspaceId:string,requestId=randomUUID()):Promise<CommandResult>=>{const r=await fetch(`${base}/api/command`,{method:'POST',headers:{'Content-Type':'application/json','X-Billable-Token':token},body:JSON.stringify({requestId,workspaceId,command:c})});assert.equal(r.status,200,await r.clone().text());return r.json();};
     const denied=await fetch(`${base}/api/command`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(denied.status,403);

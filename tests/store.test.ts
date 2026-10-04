@@ -289,9 +289,9 @@ test('demo fixtures reproduce the promised project comparison without counting u
   const hydra = state.insights.find(i => i.projectId === hydraProject.id)!;
   assert.deepEqual([llama.revenueMinor, llama.directCostsMinor, llama.workedMinutes, llama.contributionPerHourMinor], [240_000, 30_000, 1200, 10_500]);
   assert.deepEqual([hydra.revenueMinor, hydra.directCostsMinor, hydra.workedMinutes, hydra.contributionPerHourMinor], [300_000, 50_000, 3000, 5000]);
-  assert.equal(state.totals.revenueMinor, 540_000);
-  assert.equal(state.totals.workedMinutes, 4200);
-  assert.equal(state.totals.nonBillableMinutes, 1440);
+  assert.equal(state.totals.revenueMinor, 3_628_000);
+  assert.equal(state.totals.workedMinutes, 23_580);
+  assert.equal(state.totals.nonBillableMinutes, 5760);
   assert.equal(state.attachments.length, 2);
   assert.equal(state.timeEntries.filter(t => !t.approved).length, 1);
 });

@@ -240,13 +240,113 @@ export class WorkspaceStore {
   }
 }
 
+/**
+ * Fictional demo studio: nine months of a healthy one-person automation & design business.
+ * Every figure comes from records created through the normal commands, so the totals stay consistent.
+ * The Llama Labs (€105/h) vs Meeting Hydra (€50/h) comparison is the scripted demo story; keep its numbers.
+ */
 export function seedDemo(store:WorkspaceStore){
   const exec=(c:Command)=>store.execute(c).createdId!;
   const b=store.business();exec({type:'business.update',data:{...b,name:'Paper & Pine Studio',address:'42 Example Lane\n1234 AB Amsterdam',legalForm:'Sole proprietor',taxRegistered:true,taxId:'NL000000000B00',registrationId:'00000000',paymentInstructions:'Demo only · Example account NL00 DEMO 0000 0000 00',invoicePrefix:'DEMO'}});
-  const make=(name:string,rate:string,billable:number,unpaid:number,cost:string)=>{const clientId=exec({type:'client.create',data:{name,address:'8 Fictional Street\n1234 CD Amsterdam',country:'NL',email:'',taxId:'',contactName:'A. Example'}});const projectId=exec({type:'project.create',data:{clientId,name:name==='Llama Labs'?'The quiet launch':'The meeting marathon',kind:'hourly',rate,fixedPrice:null,costsComplete:true,status:'complete',estimatedRemainingMinutes:0}});const ids:string[]=[];let remaining=billable;let day=15;while(remaining){const m=Math.min(480,remaining);ids.push(exec({type:'time.create',data:{projectId,date:`2026-09-${day++}`,minutes:m,description:'Design & delivery',category:'Delivery',billable:true,approved:true}}));remaining-=m;}remaining=unpaid;while(remaining){const m=Math.min(480,remaining);exec({type:'time.create',data:{projectId,date:`2026-09-${day++}`,minutes:m,description:'Preparation, meetings & aftercare',category:'Aftercare',billable:false,approved:true}});remaining-=m;}const invoiceId=exec({type:'invoice.draft',data:{projectId,timeEntryIds:ids,issueDate:'2026-09-25',supplyDate:'2026-09-24',dueDate:'2026-10-25',taxRate:'21',notes:'Fictional demonstration invoice.',extraLines:[]}});exec({type:'invoice.issue',data:{id:invoiceId,revision:1}});exec({type:'expense.create',data:{projectId,date:'2026-09-24',description:'Direct project production costs',netAmount:cost,taxAmount:'0',deductibleTax:true,supplier:'Fictional Print Works',category:'Materials',country:'NL',vatTreatment:'none',paymentMethod:'Bank transfer',attachment:{name:'demo-receipt.pdf',mime:'application/pdf',base64:demoReceiptPdf().toString('base64')}}});return {projectId,invoiceId};};
-  const llama=make('Llama Labs','150.00',960,240,'300.00');make('Meeting Hydra','100.00',1800,1200,'500.00');exec({type:'payment.create',data:{invoiceId:llama.invoiceId,date:'2026-09-28',amount:'1200.00',reference:'Fictional part payment'}});
+  const USD='1.17'; // 1 EUR = 1.17 USD for every dollar amount below
+  const client=(name:string,address:string,country='NL',taxId='',contactName='A. Example')=>exec({type:'client.create',data:{name,address,country,email:'',taxId,contactName}});
+  const project=(clientId:string,name:string,price:{rate?:string;fixed?:string},status:Project['status']='complete',extra:{costsComplete?:boolean;remaining?:number|null}={})=>exec({type:'project.create',data:{clientId,name,kind:price.fixed?'fixed':'hourly',rate:price.rate??'0.00',fixedPrice:price.fixed??null,costsComplete:extra.costsComplete??true,status,estimatedRemainingMinutes:extra.remaining??0}});
+  const work=(projectId:string,date:string,minutes:number,description:string,category='Delivery',billable=true)=>exec({type:'time.create',data:{projectId,date,minutes,description,category,billable,approved:true}});
+  /** Net amount in EUR; usd converts a dollar price and books it as a non-EU import (reverse charge). */
+  const cost=(projectId:string|null,date:string,description:string,supplier:string,category:string,price:{eur?:string;usd?:string;vat?:'standard'|'none'|'intra-eu';country?:string},paymentMethod='Credit card',extra:{deductibleTax?:boolean;taxAmount?:string;supplierInvoiceNumber?:string;attachment?:Upload|null}={})=>{
+    const net=price.usd?new Decimal(price.usd).div(USD).toFixed(2):price.eur!,vatTreatment=price.usd?'import-non-eu':price.vat??'standard';
+    exec({type:'expense.create',data:{projectId,date,description,netAmount:net,taxAmount:extra.taxAmount??(vatTreatment==='standard'?new Decimal(net).mul('0.21').toFixed(2):'0'),deductibleTax:extra.deductibleTax??true,supplier,supplierInvoiceNumber:extra.supplierInvoiceNumber??'',category,country:price.usd?'US':price.country??'NL',vatTreatment,paymentMethod,...(price.usd?{originalCurrency:'USD',originalAmount:price.usd}:{}),attachment:extra.attachment??null}});
+  };
+  // Drafts first; they are issued afterwards in date order so invoice numbers run chronologically.
+  const issue:{date:string;id:string}[]=[];
+  const invoice=(projectId:string,timeEntryIds:string[],issueDate:string,dueDate:string,options:{taxRate?:string;currency?:string;notes?:string}={})=>{const id=exec({type:'invoice.draft',data:{projectId,timeEntryIds,issueDate,supplyDate:issueDate,dueDate,taxRate:options.taxRate??'21',notes:options.notes??'Fictional demonstration invoice.',extraLines:[],...(options.currency?{currency:options.currency,exchangeRate:USD}:{})}});issue.push({date:issueDate,id});return id;};
+  const paidInFull=(invoiceId:string,date:string,reference:string)=>{const i=store.state().invoices.find(x=>x.id===invoiceId)!;exec({type:'payment.create',data:{invoiceId,date,amount:(i.outstandingMinor/100).toFixed(2),reference}});};
+  const months=['01','02','03','04','05','06','07','08','09'];
+
+  // 1 · The monthly retainer that pays the rent.
+  const heroes=project(client('Inbox Zero Heroes BV','7 Quiet Inbox Street\n3511 AB Utrecht'),'Automation autopilot (monthly retainer)',{rate:'135.00'},'active');
+  const wins=['Untangled the onboarding workflow spaghetti','Auto-tagged 4,000 unread emails','Invoice chaser bot (politely persistent)','CRM dedupe: farewell, 312 duplicate Daves','Slack alarm when a big lead lands','Fixed the webhook that cried wolf','Summer-proofed the auto-replies','Monthly report bot, now with charts'];
+  const retainer:string[]=[];
+  months.forEach((m,n)=>{
+    cost(heroes,`2026-${m}-02`,'Client workspace · extra automation task credits','Flowmatic Cloud','Software',{eur:'19.00'});
+    if(m==='09'){work(heroes,'2026-09-08',360,'Lead scoring tweaks');work(heroes,'2026-09-29',60,'Monthly check-in call & report','Meeting',false);return;}
+    const ids=[work(heroes,`2026-${m}-06`,420,wins[n]),work(heroes,`2026-${m}-14`,300,'Monitoring, fixes & small requests','Development')];
+    work(heroes,`2026-${m}-24`,120,'Monthly check-in call & report','Meeting',false);
+    retainer.push(invoice(heroes,ids,`2026-${m}-28`,`2026-${months[n+1]}-11`));
+  });
+
+  // 2 · The star: a productised bot sold at a fixed price.
+  const bakery=project(client('Knead for Speed Bakery','12 Crumb Corner\n2011 CD Haarlem'),'Sourdough order bot',{fixed:'7500.00'});
+  work(bakery,'2026-02-05',180,'Discovery call: what does “the usual” mean?','Preparation',false);
+  work(bakery,'2026-02-12',420,'Order bot: menu & pre-orders','Development');work(bakery,'2026-02-19',420,'WhatsApp order flow','Development');work(bakery,'2026-02-26',420,'Sourdough stock tracker','Development');
+  work(bakery,'2026-03-05',420,'Pickup reminders & no-show nudges','Development');work(bakery,'2026-03-12',420,'Tested with 40 very hungry beta customers');
+  work(bakery,'2026-03-19',180,'Training the bakery team','Meeting',false);work(bakery,'2026-03-26',120,'Aftercare: croissant emoji support','Aftercare',false);
+  cost(bakery,'2026-02-20','SMS & WhatsApp message credits','Text-a-Lot Messaging BV','Software',{eur:'85.00'});
+  cost(bakery,'2026-03-10','AI model usage for the order bot','Robot Brain Co.','Software / AI',{usd:'48.00'});
+  const bakeryInvoice=invoice(bakery,[],'2026-03-31','2026-04-14');
+
+  // 3 · The cautionary tale: a fixed price without a revision limit.
+  const pete=project(client('Pixel Perfect Pete','99 Nitpick Avenue\n6811 EF Arnhem','NL','','Pete Example'),'Just one more tweak (website)',{fixed:'2000.00'});
+  ['2026-04-07','2026-04-08','2026-04-14','2026-04-15'].forEach((d,n)=>work(pete,d,420,['Homepage & layout','Product pages','Contact form & booking','Launch checklist'][n],'Development'));
+  ['Tweak round 1: make the logo bigger','Tweak round 2: make the logo smaller','Tweak round 3: “can it pop more?”','Tweak round 4: back to version 1','Tweak round 5: Pete’s nephew had ideas','Tweak round 6: final_FINAL_v7'].forEach((d,n)=>work(pete,`2026-05-${String(4+n*4).padStart(2,'0')}`,360,d,'Aftercare',false));
+  cost(pete,'2026-04-06','Premium website theme licence','Theme Forge Ltd','Software',{eur:'59.00'},'PayPal');
+  cost(pete,'2026-04-09','Stock photos of extremely happy people','Smile Stock','Materials',{eur:'40.00'});
+  const peteInvoice=invoice(pete,[],'2026-05-29','2026-06-12');
+
+  // 4 · An EU client: reverse-charged, 0% VAT, lands in VAT box 3b.
+  const widgets=project(client('Wunderbar Widgets GmbH','1 Beispielstraße\n10115 Berlin','DE','DE000000000','B. Beispiel'),'Spreadsheet exorcism',{rate:'135.00'});
+  const widgetTime=[work(widgets,'2026-06-03',480,'Day 1: the macros screamed'),work(widgets,'2026-06-04',480,'Rebuilt 37 tabs into one clean database','Development'),work(widgets,'2026-06-10',480,'Automated the weekly stock report','Development'),work(widgets,'2026-06-12',480,'On-site workshop: “Never again, Excel”')];
+  work(widgets,'2026-06-11',300,'Train to Berlin & back','Travel',false);
+  cost(widgets,'2026-06-11','Train tickets Amsterdam–Berlin','Choo Choo Rail','Travel',{eur:'129.00',vat:'none'},'iDEAL');
+  const widgetInvoice=invoice(widgets,widgetTime,'2026-06-30','2026-07-30',{taxRate:'0'});
+
+  // 5 · A US client, invoiced in dollars.
+  const yeehaw=project(client('Yeehaw Ventures LLC','1 Example Road\nAustin, TX 78701','US','','C. Example'),'Lead-gen agent rodeo',{rate:'150.00'});
+  work(yeehaw,'2026-07-02',120,'Kickoff call at 23:00 (time zones!)','Meeting',false);
+  const yeehawTime=[work(yeehaw,'2026-07-07',480,'Wrangled 10,000 leads into one sheet','Development'),work(yeehaw,'2026-07-08',480,'Cold email writer that doesn’t sound cold','Development'),work(yeehaw,'2026-07-14',480,'CRM sync & duplicate roundup','Development'),work(yeehaw,'2026-07-15',240,'Handover & documentation','Documentation')];
+  work(yeehaw,'2026-07-21',120,'Answering “quick questions” from Texas','Aftercare',false);
+  cost(yeehaw,'2026-07-09','Lead data enrichment credits','Lasso Leads Inc.','Software / AI',{usd:'79.00'});
+  const yeehawInvoice=invoice(yeehaw,yeehawTime,'2026-07-31','2026-08-30',{taxRate:'0',currency:'USD'});
+
+  // 6 + 7 · The scripted comparison: more revenue is not automatically the better project.
+  const make=(name:string,rate:string,billable:number,unpaid:number,cost:string)=>{const clientId=client(name,'8 Fictional Street\n1234 CD Amsterdam');const projectId=project(clientId,name==='Llama Labs'?'The quiet launch':'The meeting marathon',{rate});const ids:string[]=[];let remaining=billable;let day=15;while(remaining){const m=Math.min(480,remaining);ids.push(work(projectId,`2026-09-${day++}`,m,'Design & delivery'));remaining-=m;}remaining=unpaid;while(remaining){const m=Math.min(480,remaining);work(projectId,`2026-09-${day++}`,m,'Preparation, meetings & aftercare','Aftercare',false);remaining-=m;}const invoiceId=invoice(projectId,ids,'2026-09-25','2026-10-25');exec({type:'expense.create',data:{projectId,date:'2026-09-24',description:'Direct project production costs',netAmount:cost,taxAmount:'0',deductibleTax:true,supplier:'Fictional Print Works',category:'Materials',country:'NL',vatTreatment:'none',paymentMethod:'Bank transfer',attachment:{name:'demo-receipt.pdf',mime:'application/pdf',base64:demoReceiptPdf().toString('base64')}}});return {projectId,invoiceId};};
+  const llama=make('Llama Labs','150.00',960,240,'300.00');make('Meeting Hydra','100.00',1800,1200,'500.00');
   exec({type:'time.create',data:{projectId:llama.projectId,date:'2026-10-01',minutes:90,description:'Optional follow-up workshop (review before billing)',category:'Preparation',billable:true,approved:false,startTime:'09:30',endTime:'11:00'}});
-  // A general business cost bought abroad: no project, reverse-charged VAT, original USD amount kept for reference.
-  exec({type:'expense.create',data:{projectId:null,date:'2026-09-10',description:'Design software subscription · September',netAmount:'49.50',taxAmount:'0',deductibleTax:true,supplier:'Fictional Software Inc.',supplierInvoiceNumber:'FS-0912',category:'Software',country:'US',vatTreatment:'import-non-eu',paymentMethod:'Credit card',originalCurrency:'USD',originalAmount:'54.00',attachment:null}});
+
+  // 8 · Work in progress: fixed contract, direct costs not final yet, so its return stays unknown.
+  const chompers=project(client('Chompers Dental Clinic','3 Molar Lane\n5611 GH Eindhoven'),'AI receptionist that never sleeps',{fixed:'6000.00'},'active',{costsComplete:false,remaining:1500});
+  work(chompers,'2026-09-02',120,'Kickoff: the receptionist must never sleep','Meeting',false);
+  work(chompers,'2026-09-03',420,'Voice agent: booking & rescheduling','Development');work(chompers,'2026-09-09',420,'Calendar sync with the dental chairs','Development');
+  work(chompers,'2026-09-23',420,'Teaching it to say “floss” politely','Development');work(chompers,'2026-09-30',300,'Emergency toothache escalation flow','Development');
+  cost(chompers,'2026-09-04','Voice minutes for testing','Voice Clone Club','Software / AI',{usd:'22.00'});
+
+  // General business costs: the subscriptions most builders will recognise.
+  months.forEach(m=>{
+    cost(null,`2026-${m}-01`,'AI assistant · Pro plan','Robot Brain Co.','Software / AI',{usd:'20.00'});
+    cost(null,`2026-${m}-01`,'Automation platform · Pro plan','Flowmatic Cloud GmbH','Software',{eur:'24.00',vat:'intra-eu',country:'DE'});
+    cost(null,`2026-${m}-01`,'Hot desk, three days a week','The Hive Coworking','Co-working & office',{eur:'175.00'},'Direct debit');
+    cost(null,`2026-${m}-03`,'Mobile & fibre internet','Chatty Telecom','Telephone & internet',{eur:'45.00'},'Direct debit');
+    cost(null,`2026-${m}-05`,'Website hosting','Hostess with the Mostest','Website & hosting',{eur:'12.00'});
+    cost(null,`2026-${m}-10`,'Design software · all apps',`Pixelpalooza Inc.`,'Software',{usd:'54.00'},'Credit card',{supplierInvoiceNumber:`PX-26${m}`});
+    cost(null,`2026-${m}-12`,'Mastermind community membership','The Grandmaster Guild','Memberships',{usd:'99.00'});
+    cost(null,`2026-${m}-28`,'Business account fees','Piggy Bank NV','Bank fees',{eur:'8.50',vat:'none'},'Direct debit');
+  });
+  cost(null,'2026-01-08','Domain names · three years','Dot Com Dot Calm','Domain names',{eur:'36.00'});
+  cost(null,'2026-02-10','Prompt engineering course','Prompt Dojo','Training',{eur:'297.00'},'iDEAL');
+  cost(null,'2026-04-16','Client lunch · bakery bot launch','The Hungry Llama Café','Hospitality & representation',{eur:'54.13'},'Credit card',{taxAmount:'4.87',deductibleTax:false});
+  cost(null,'2026-05-20','Noise-cancelling headphones (for meeting marathons)','Gadget Goblin','Other',{eur:'229.00'},'iDEAL');
+  ['03-31','06-30','09-30'].forEach(d=>cost(null,`2026-${d}`,'Bookkeeper · quarterly VAT check','Beancounters & Co','Other',{eur:'150.00'},'Bank transfer'));
+
+  // Issue every draft in date order, then record what came in.
+  for(const x of issue.sort((a,b)=>a.date.localeCompare(b.date)))exec({type:'invoice.issue',data:{id:x.id,revision:1}});
+  retainer.forEach((id,n)=>paidInFull(id,`2026-${months[n+1]}-08`,'Paid on time, as always'));
+  paidInFull(bakeryInvoice,'2026-04-13','Paid in fresh bread money');
+  exec({type:'credit.create',data:{invoiceId:peteInvoice,date:'2026-06-05',netAmount:'100.00',reason:'Goodwill: we agreed the font is fine'}});
+  exec({type:'payment.create',data:{invoiceId:peteInvoice,date:'2026-06-28',amount:'1000.00',reference:'First half, eventually'}});paidInFull(peteInvoice,'2026-07-15','Finally');
+  paidInFull(widgetInvoice,'2026-07-10','Pünktlich');
+  paidInFull(yeehawInvoice,'2026-08-12','Wire from Texas');
+  exec({type:'payment.create',data:{invoiceId:llama.invoiceId,date:'2026-09-28',amount:'1200.00',reference:'Fictional part payment'}});
+  exec({type:'vat.filing',data:{period:'Q1 2026',status:'filed',filedOn:'2026-04-28',note:'Filed online'}});
+  exec({type:'vat.filing',data:{period:'Q2 2026',status:'filed',filedOn:'2026-07-29',note:'Filed online'}});
 }
 function demoReceiptPdf(){const stream='BT /F1 16 Tf 50 750 Td (FICTIONAL DEMO RECEIPT - Paper & Pine) Tj ET';const objs=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>',`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];let pdf='%PDF-1.4\n';const offsets=[0];for(let n=0;n<objs.length;n++){offsets.push(Buffer.byteLength(pdf));pdf+=`${n+1} 0 obj\n${objs[n]}\nendobj\n`;}const xref=Buffer.byteLength(pdf);pdf+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(x=>`${String(x).padStart(10,'0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;return Buffer.from(pdf);}
