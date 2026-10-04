@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { ArrowUpRight, X, Plus, type LucideIcon } from 'lucide-react';
+import { t } from './i18n';
+import { Component, useEffect, useRef, type ReactNode } from 'react';
+import { ArrowUpRight, X, Plus, RefreshCw, type LucideIcon } from 'lucide-react';
 
 export function Button({ children, variant = 'primary', icon: Icon, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; icon?: LucideIcon }) {
   return <button {...props} className={`button ${variant} ${props.className || ''}`}>{Icon && <Icon size={16} strokeWidth={1.8} />}{children}</button>;
@@ -36,5 +37,16 @@ export function Modal({ title, subtitle, children, onClose, wide = false }: { ti
     document.addEventListener('keydown', listener);
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', listener); previous?.focus(); };
   }, [onClose]);
-  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div ref={element} role="dialog" aria-modal="true" aria-label={title} className={`modal ${wide ? 'wide' : ''}`}><div className="modal-header"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button onClick={onClose} className="icon-button" aria-label="Close dialog"><X size={20}/></button></div>{children}</div></div>;
+  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div ref={element} role="dialog" aria-modal="true" aria-label={title} className={`modal ${wide ? 'wide' : ''}`}><div className="modal-header"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button onClick={onClose} className="icon-button" aria-label={t("Close dialog")}><X size={20}/></button></div>{children}</div></div>;
+}
+/** Shows a recovery screen instead of a blank page when rendering fails. Saved records live on the server and are not touched. */
+export class ErrorBoundary extends Component<{ children: ReactNode; onReset?: () => void }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: unknown) { console.error(error); }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    const reset = this.props.onReset;
+    return <div className="crash" role="alert"><h2>{t('This page could not be shown.')}</h2><p>{t('Saved records are not affected by this display error. Changes you had not saved yet may need to be entered again.')}</p><div className="crash-actions">{reset && <Button variant="secondary" onClick={() => { this.setState({ failed: false }); reset(); }}>{t('Back to overview')}</Button>}<Button icon={RefreshCw} onClick={() => window.location.reload()}>{t('Reload')}</Button></div></div>;
+  }
 }
